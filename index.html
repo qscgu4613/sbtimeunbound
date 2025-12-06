@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>随机图片查看器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      background-color: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer; /* 提示整屏可点击 */
+    }
+
+    .outer-frame {
+      position: relative;
+      border: 3px solid #ffd700; /* 黄框 */
+      border-radius: 12px;
+      padding: 12px;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 600px;
+      height: min(600px, calc(100vh - 32px)); /* 适配小屏 */
+      background-color: #000;
+      overflow: hidden;
+    }
+
+    .frame-title {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #ffd700;
+      color: #000;
+      padding: 2px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .image-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #random-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain; /* 尽量完整显示，等比例缩放 */
+      display: block;
+    }
+
+    .overlay-text {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      color: #ffd700;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      pointer-events: none; /* 不挡点击 */
+      user-select: none;
+    }
+
+    @media (max-width: 480px) {
+      .outer-frame {
+        padding: 8px;
+        border-radius: 10px;
+      }
+
+      .frame-title {
+        font-size: 12px;
+        padding: 2px 10px;
+      }
+
+      .overlay-text {
+        font-size: 11px;
+        padding: 3px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="outer-frame">
+    <div class="frame-title">look image</div>
+    <div class="image-container">
+      <img id="random-image" alt="随机图片" />
+      <div class="overlay-text">点击切换一张</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const API_URL = "https://vostin.xyz/api/next-image";
+      const imgEl = document.getElementById("random-image");
+      const overlayEl = document.querySelector(".overlay-text");
+
+      let usedIds = [];
+      let isLoading = false;
+
+      async function loadRandomImage() {
+        if (isLoading) return;
+        isLoading = true;
+
+        try {
+          overlayEl.textContent = "加载中...";
+
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ usedIds: usedIds })
+          });
+
+          if (!res.ok) {
+            throw new Error("网络错误：" + res.status);
+          }
+
+          const randomIdHeader = res.headers.get("X-Random-Id");
+          if (randomIdHeader) {
+            const numId = Number(randomIdHeader);
+            if (!Number.isNaN(numId) && !usedIds.includes(numId)) {
+              usedIds.push(numId);
+            }
+          }
+
+          const blob = await res.blob();
+          const imgUrl = URL.createObjectURL(blob);
+
+          imgEl.onload = function () {
+            URL.revokeObjectURL(imgUrl);
+          };
+
+          imgEl.src = imgUrl;
+        } catch (err) {
+          console.error(err);
+          overlayEl.textContent = "加载失败，点击重试";
+          isLoading = false;
+          return;
+        }
+
+        overlayEl.textContent = "点击切换一张";
+        isLoading = false;
+      }
+
+      // 点击整个屏幕切换一张
+      document.addEventListener("click", function () {
+        loadRandomImage();
+      });
+
+      // 页面一加载就来一张
+      window.addEventListener("load", function () {
+        loadRandomImage();
+      });
+    })();
+  </script>
+</body>
+</html>
